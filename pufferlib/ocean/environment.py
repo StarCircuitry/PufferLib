@@ -14,6 +14,7 @@ from .moba.moba import Moba
 from .nmmo3.nmmo3 import NMMO3
 from .go.go import Go
 from .rware.rware import Rware
+from .hexmap.hexmap import Hexmap
 #from .rocket_lander import rocket_lander
 from .trash_pickup.trash_pickup import TrashPickupEnv
 
@@ -123,6 +124,13 @@ def make_multiagent(buf=None, **kwargs):
     env = pufferlib.postprocess.MultiagentEpisodeStats(env)
     return pufferlib.emulation.PettingZooPufferEnv(env=env, buf=buf)
 
+# purpose of parameters?
+def make_hexmap(radius=3, buf=None, **kwargs):
+    from . import sanity
+    env = sanity.Hexmap(radius=radius, **kwargs)
+    env = pufferlib.postprocess.EpisodeStats(env)
+    return pufferlib.emulation.GymnasiumPufferEnv(env=env, buf=buf, **kwargs)
+
 MAKE_FNS = {
     'breakout': Breakout,
     'pong': Pong,
@@ -138,6 +146,7 @@ MAKE_FNS = {
     'go': Go,
     'rware': Rware,
     'trash_pickup': TrashPickupEnv,
+    'hexmap': Hexmap,
 
     #'rocket_lander': rocket_lander.RocketLander,
     'foraging': make_foraging,
