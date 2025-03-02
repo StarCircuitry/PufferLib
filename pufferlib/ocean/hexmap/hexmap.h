@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "raylib.h"
+#include <stdio.h>
 
 // for the purposes of these actions, I'm assuming pointy-top hex orientation
 // could separate direction from action choice in future
@@ -30,12 +31,14 @@ const unsigned char EARTH = 4;
 const unsigned char WOOD = 5;
 const unsigned char NULLELEM = 255;  // doesn't really matter, but well outside element range
 
+
+
 typedef struct HexCoord HexCoord;
 struct HexCoord {
     int q;
     int r;
     int index;
-}
+};
 
 // Map helpers for {HexCoord -> unsigned char} maps
 // Todo: comparison and operator functions for hexcoord
@@ -98,28 +101,9 @@ void free_allocated(Hexmap* env) {
     free(env->terrain_elements);
 }
 
-void reset(Hexmap* env) {
-    memset(env->observations, 0, env->size*sizeof(unsigned char));
-    
-    generate_terrain(env->terrain_coordinates, env->terrain_elements, env->observations, env->radius, env->size, env);
-
-    env->q = 0;
-    env->r = 0;
-    env->hunger = 10;
-    env->thirst = 10;
-
-    // TODO: encapsulate as a setter
-    env->target_coord.q = env->q;
-    env->target_coord.r = env->r;
-    env->target_coord.index = get_hexmap_index(env->terrain_coordinates, env->target_coord, env->size);
-
-    env->observations[env->target_coord.index] = AGENT;
-    env->tick = 0;
-}
-
 // currently generates hexagonal maps only
 void generate_terrain(HexCoord* terrain_coordinates, unsigned char* terrain_elements,
-    unsigned char* observations, int radius, Hexmap* env) {
+    unsigned char* observations, int radius, int size, Hexmap* env) {
 
     int r1;
     int r2;
@@ -143,7 +127,7 @@ void generate_terrain(HexCoord* terrain_coordinates, unsigned char* terrain_elem
         for (int r = r1; r <= r2; r++) {
 
             if (index < size) {
-                terrain_elem = rand() / (RAND_MAX / (WOOD - WATER + 1) + 1);
+                terrain_elem = (rand() % (WOOD - WATER + 1)) + WATER;
                 env->target_coord.q = q;
                 env->target_coord.r = r;
 
@@ -160,7 +144,30 @@ void generate_terrain(HexCoord* terrain_coordinates, unsigned char* terrain_elem
     }
 }
 
-void step(Hexmap* env) {
+
+void c_reset(Hexmap* env) {
+    memset(env->observations, 0, env->size*sizeof(unsigned char));
+    
+    generate_terrain(env->terrain_coordinates, env->terrain_elements, env->observations, env->radius, env->size, env);
+
+    env->q = 0;
+    env->r = 0;
+    env->hunger = 10;
+    env->thirst = 10;
+
+    // TODO: encapsulate as a setter
+    env->target_coord.q = env->q;
+    env->target_coord.r = env->r;
+    env->target_coord.index = get_hexmap_index(env->terrain_coordinates, env->target_coord, env->size);
+
+    if (env->target_coord.index >= 0 && env->target_coord.index < env->size){
+        env->observations[env->target_coord.index] = AGENT;
+    }
+    env->tick = 0;
+}
+
+
+void c_step(Hexmap* env) {
     int action = env->actions[0];
     env->terminals[0] = 0;
     env->rewards[0] = 0;
@@ -171,7 +178,9 @@ void step(Hexmap* env) {
     env->target_coord.r = env->r;
     env->target_coord.index = get_hexmap_index(env->terrain_coordinates, env->target_coord, env->size);
 
-    env->observations[env->target_coord.index] = env->terrain_elements[env->target_coord.index];
+    if (env->target_coord.index >= 0 && env->target_coord.index < env->size) {
+        env->observations[env->target_coord.index] = env->terrain_elements[env->target_coord.index];
+    }
 
     if (action == MOVE_NORTHEAST) {
         env->q += 1;
@@ -208,7 +217,7 @@ void step(Hexmap* env) {
         env->target_coord.index = get_hexmap_index(env->terrain_coordinates,
             env->target_coord, env->size);
 
-        if (env->target_cood.index > 0 && env->target_coord.index < env->size) {
+        if (env->target_coord.index >= 0 && env->target_coord.index < env->size) {
             unsigned char elem = env->terrain_elements[env->target_coord.index];
 
             env->terrain_elements[env->target_coord.index] = NULLELEM;
@@ -237,17 +246,18 @@ void step(Hexmap* env) {
 
     if (env->hunger <= 0 
             || env->thirst <= 0
-            || env->target_coord.index == -1) {
+            || env->target_coord.index < 0
+            || env->target_coord.index >= env->size) {
         env->terminals[0] = 1;
         env->rewards[0] -= 1.0;
-        reset(env);
+        c_reset(env);
         return;
     }
 
     if (env->tick > 2*env->size) {
         env->terminals[0] = 1;
         env->rewards[0] += 1.0;
-        reset(env);
+        c_reset(env);
         return;
     }
 
@@ -260,7 +270,7 @@ void step(Hexmap* env) {
 
 typedef struct Client Client;
 struct Client {
-    Texture2D ball;
+    //Texture2D ball;
 };
 
 Client* make_client(Hexmap* env) {
@@ -273,12 +283,12 @@ Client* make_client(Hexmap* env) {
     return client;
 }
 
-void close_client(Hexmap* client) {
+void close_client(Client* client) {
     CloseWindow();
     free(client);
 }
 
-void render(Client* client, Hexmap* env) {
+void c_render(Client* client, Hexmap* env) {
     if (IsKeyDown(KEY_ESCAPE)) {
         exit(0);
     }
@@ -286,7 +296,32 @@ void render(Client* client, Hexmap* env) {
     BeginDrawing();
     ClearBackground((Color){6, 24, 24, 255});
 
+    int q;
+    int r;
     int px = 64;
+
+    Color color;
+
+
+    for (int i = 0; i < env->size; i++) {
+        q = env->terrain_coordinates[i].q;
+        r = env->terrain_coordinates[i].r;
+
+        if (env->terrain_elements[i] == WATER) {
+            color = (Color){0, 0, 255, 255};
+        } else if (env->terrain_elements[i] == EARTH) {
+            color = (Color){255, 255, 0, 255};
+        } else if (env->terrain_elements[i] == WOOD) {
+            color = (Color){0, 255, 0, 255};
+        } else {
+            color = (Color){0, 0, 0, 255};
+        }
+
+        DrawRectangle(q*px, r*px, px, px, color);
+
+    }
+
+    /*int px = 64;
     for (int i = 0; i < env->size; i++) {
         for (int j = 0; j < env->size; j++) {
             int tex = env->observations[i*env->size + j];
@@ -296,6 +331,6 @@ void render(Client* client, Hexmap* env) {
             Color color = (tex == AGENT) ? (Color){0, 255, 255, 255} : (Color){255, 0, 0, 255};
             DrawRectangle(j*px, i*px, px, px, color);
         }
-    }
+    }*/
     EndDrawing();
 }

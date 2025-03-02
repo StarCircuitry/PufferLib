@@ -124,13 +124,6 @@ def make_multiagent(buf=None, **kwargs):
     env = pufferlib.postprocess.MultiagentEpisodeStats(env)
     return pufferlib.emulation.PettingZooPufferEnv(env=env, buf=buf)
 
-# purpose of parameters?
-def make_hexmap(radius=3, buf=None, **kwargs):
-    from . import sanity
-    env = sanity.Hexmap(radius=radius, **kwargs)
-    env = pufferlib.postprocess.EpisodeStats(env)
-    return pufferlib.emulation.GymnasiumPufferEnv(env=env, buf=buf, **kwargs)
-
 MAKE_FNS = {
     'breakout': Breakout,
     'pong': Pong,
